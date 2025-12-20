@@ -35,7 +35,11 @@ gdp_df = gdp_df |>
   rename(Country='Country or Area', GDP_Per_Capita=Value)
 gdp_df
 ```
-
+We see there are no NA values for GDP per capita.
+```{r}
+gdp_df |>
+  filter(is.na(GDP_Per_Capita))
+```
 
 3. Which years are represented in this dataset? How many observations are there per year? Make a plot to view the number of observations per year.
 
@@ -43,18 +47,16 @@ gdp_df
 start_year = gdp_df |>
   summarize(min_year = min(Year)) |>
   pull(min_year)
+paste0('The first year in the dataset is ',start_year)
 
 end_year = gdp_df |>
   summarize(max_year = max(Year)) |>
   pull(max_year)
-
-num_obs_per_year = gdp_df |>
-  count(Year) |>
-  arrange(Year) 
-num_obs_per_year
+paste0('The last year in the dataset is ',end_year)
 ```
 
 ```{r}
+# Testing for any missing years
 distinct_years = num_obs_per_year |>
   mutate(Year_Manual = start_year + row_number() - 1) |>
   mutate(Year_Match = Year == Year_Manual) |>
@@ -62,7 +64,14 @@ distinct_years = num_obs_per_year |>
   pull(year_match)
 distinct_years
 ```
-We see that all of the years from 1990 to 2022 are represented in the GDP dataset. 
+We see that all 33 years from 1990 to 2022 are represented in the GDP dataset. 
+
+```{r}
+num_obs_per_year = gdp_df |>
+  count(Year) |>
+  arrange(Year) 
+num_obs_per_year
+```
 
 ```{r}
 gdp_df |>
@@ -75,24 +84,32 @@ gdp_df |>
     x = "Year", y = "Number of Observations")
 ```
 
-
-
 4. How many countries are represented in this dataset? Which countries have the fewest observations?
 
 ```{r}
-gdp_df |>
+total_countries = gdp_df |>
   distinct(Country) |>
   count() |>
   pull()
-```
-There are 242 countries represented in the dataset.
 
-Countries with the fewest observations:
+paste0('There are ',total_countries,' represented in the GDP dataset.')
+```
+
+Countries with the fewest observations (by raw count):
 
 ```{r}
 gdp_df |>
   count(Country) |>
-  slice_head(n=3)
+  slice_min(n, n=3)
+```
+
+Countries in the bottom 10% of observations:
+```{r}
+gdp_df |>
+  count(Country) |>
+  mutate(Count_Percentile = percent_rank(n)) |>
+  filter(Count_Percentile <= 0.10) |>
+  arrange(Count_Percentile)
 ```
 
 
@@ -132,14 +149,12 @@ gdp_df |>
 Top 5 countries by GDP per capita in 2021:
 ```{r}
 gdp_2021 |>
-  arrange(desc(GDP_Per_Capita)) |>
-  slice_head(n=5)
+  slice_max(GDP_Per_Capita, n=5)
 ```
 Bottom 5 countries by GDP per capita in 2021:
 ```{r}
 gdp_2021 |>
-  arrange(desc(GDP_Per_Capita)) |>
-  slice_tail(n=5)
+  slice_min(GDP_Per_Capita, n=5)
 ```
 
 9. Now, return to the full dataset, gdp_df. Pivot the data for 1990 and 2021 (using pivot_wider() function) so that each row corresponds to a country, each column corresponds to a year, and the values in the table give the GDP_Per_Capita amount. Drop any rows that are missing values for either 1990 or 2021. Save the result to a tibble named gdp_pivoted.
@@ -162,31 +177,29 @@ gdp_pivoted = gdp_pivoted |>
 
 11. How many countries experienced a negative percent change in GDP per capita from 1990 to 2021?
 
-There were 19 countries that experienced a negative percent change in GDP per capita from 1990 to 2021:
 ```{r}
-gdp_pivoted |>
+neg_change = gdp_pivoted |>
   filter(Percent_Change < 0) |>
   count() |>
   pull()
+
+paste0('There were ',neg_change,' countries that experienced a negative percent change in GDP per capita from 1990 to 2021.')
 ```
 
 
 12. Which country had the highest % change in GDP per capita? Which country had the second highest % change? Create a line plot showing these country's GDP per capita for all years for which you have data. Put both line charts on the same plot.
 
-Equatorial Guinea had the highest percent increase in GDP per capita from 1990 to 2021; China had the second higest percent increase. 
 ```{r}
-gdp_pivoted |>
-  slice_max(Percent_Change, n=2)
+top_2_gdp_increase = gdp_pivoted |>
+  slice_max(Percent_Change, n=2) |>
+  pull(Country)
+
+paste0(top_2_gdp_increase[1],' had the highest percent increase in GDP per capita from 1990 to 2021.')
+paste0(top_2_gdp_increase[2],' had the second highest percent increase in GDP per capita from 1990 to 2021.')
+
 ```
 
 ```{r}
-# Getting top 2 countries by percent change
-top_2_gdp_increase = gdp_pivoted |>
-  slice_max(Percent_Change, n=2) |>
-  select(Country) |>
-  pull()
-
-# Plotting GDP over time for those 2 countries
 gdp_df |>
   filter(Country %in% top_2_gdp_increase) |>
   ggplot(aes(x=Year, y=GDP_Per_Capita)) +
@@ -301,11 +314,12 @@ gdp_le_2021 |> head(2)
 
 22. Find the countries that had the top 3 largest GDP per capita figures for 2021. Create a plot showing the change in life expectancy over time for these three countries. This plot should be faceted so that each country is contained in its own figure.
 
-Luxembourg, Singapore, and Ireland had the top 3 largest GDPs in 2021.
 ```{r}
 top_3_gdp_2021 = gdp_le_2021 |>
   slice_max(GDP_Per_Capita, n=3) |>
   pull(Country)
+
+paste0('Countries with the top 3 largest GDPs in 2021: ')
 top_3_gdp_2021
 ```
 
@@ -316,7 +330,7 @@ top_3_gdp = gdp_le |>
 ggplot(top_3_gdp, aes(x = Year, y = Life_Expectancy)) +
   geom_line() +
   facet_wrap(~Country) + 
-  labs(title = "GDP Per Capita, 1990 - 2023",
+  labs(title = "GDP Per Capita, 1990 - 2022",
   x = "Year", y = "Life Expectancy (in years)")
 ```
 
@@ -329,7 +343,7 @@ ggplot(gdp_le_2021, aes(x = GDP_Per_Capita_Thousands, y = Life_Expectancy)) +
   labs(title = "Life Expectancy vs GDP per Capita, 2021",
   x = "GDP Per Capita (thousands PPP)", y = "Life Expectancy (in years)")
 ```
-
+The scatterplot of Life Expectancy vs GDP per Capita for the year 2021 shows a curved relationship, where average life expectancy rises rapidly as GDP increases from 0 to 30,000 PPP, then increases at a much slower rate as GDP per capita increases from 30,000 to 120,000 PPP.
 
 24. Find the correlation between Life Expectancy and GDP per Capita for the year 2021. What is the meaning of this number?
 
