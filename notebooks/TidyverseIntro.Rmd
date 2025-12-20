@@ -6,6 +6,8 @@ output: html_notebook
 In this project, I'll be redoing the UN Data project using the tidyverse libraries. I'll be working with three csv files, gdp_per_capita.csv, life_expectancy.csv, and continents.csv.
 
 ```{r}
+install.packages("corrr")
+library(corrr)
 library(tidyverse)
 ```
 
@@ -146,8 +148,7 @@ gdp_2021 |>
 gdp_pivoted = gdp_df |>
   filter(Year==1990 | Year==2021) |>
   pivot_wider(id_cols=Country, names_from=Year, values_from=GDP_Per_Capita) |>
-  drop_na() |>
-  rename(GDP_2021="2021", GDP_1990="1990")
+  drop_na()
 ```
 
 
@@ -155,7 +156,7 @@ gdp_pivoted = gdp_df |>
 
 ```{r}
 gdp_pivoted = gdp_pivoted |>
-  mutate(Percent_Change=100*(GDP_2021 - GDP_1990) / GDP_1990)
+  mutate(Percent_Change=100*(`2021` - `1990`) / `1990`)
 ```
 
 
@@ -233,75 +234,135 @@ gdp_df |>
 16. Create a boxplot showing GDP per capita in 2021 split out by continent. What do you notice?
 
 ```{r}
+gdp_df = gdp_df |>
+  mutate(GDP_Per_Capita_Thousands = GDP_Per_Capita/1000)
 
+gdp_df |>
+  ggplot(aes(x=Continent, y=GDP_Per_Capita_Thousands)) +
+  geom_boxplot() +
+  labs(title = "GDP Distribution by Continent, 2021",
+  x = "Continent", y = "GDP Per Capita (thousands PPP)")
 ```
-
+In 2021, the GDP per capita in African, Oceanian, and South American countries tends to be low (50,000 PPP or lower). The top 5 highest-GDP countries in 2021 are all in Asia. Europe has the highest proportion of countries with a GDP of 30,000+ PPP (about 50%). All continents have at least 2-3 extreme outliers, representing countries with a very high GDP compared with other countries in the same continent. The GDP distribution for all continents is right-skewed, with the skew being more pronounced for some continents (Africa, Oceania, and Asia) and less pronounced for others (Europe, North America, and South America).
 
 17. Read life_expectancy.csv into a tibble named life_expectancy. Do not modify the csv file in order to read this data in.
 
 ```{r}
-
+life_expectancy <- read_csv('../data/life_expectancy.csv', skip=3)
 ```
-
-
-18. Drop the Country Code, Indicator Name, and Indicator Code columns. Then use pivot_longer to convert your data from wide to long. That is, instead of having one row per country and multiple colums per year, we want to have multiple rows per country and a single column for year. After melting, rename the columns to Country, Year, and Life_Expectancy.
+18. Drop the Country Code, Indicator Name, and Indicator Code columns. Then use pivot_longer to convert your data from wide to long. That is, instead of having one row per country and multiple columns per year, we want to have multiple rows per country and a single column for year. After melting, rename the columns to Country, Year, and Life_Expectancy.
 
 ```{r}
-
+life_expectancy = life_expectancy |>
+  select(-'Country Code',-'Indicator Name',-'Indicator Code') |>
+  pivot_longer(cols=2:last_col(), names_to='Year', values_to='Life_Expectancy') |>
+  rename(Country='Country Name')
+life_expectancy |> head(2)
 ```
-
 
 19. What was the first country with a life expectancy to exceed 80?
 
 ```{r}
-
+# Converting life_expectancy$Year to a numeric datatype since we will be finding the minimum year
+life_expectancy = life_expectancy |>
+  mutate(Year = as.double(Year)) |>
+  drop_na(Year)
 ```
 
+Japan was the first country with a life expectancy to exceed 80:
+```{r}
+life_expectancy |> 
+  filter(Life_Expectancy > 80) |>
+  slice_min(Year) |> 
+  pull(Country)
+```
 
 20. Merge gdp_df and life_expectancy, keeping all countries and years that appear in both tibbles. Save the result to a new tibble named gdp_le. If you get any errors in doing this, read them carefully and correct them. Look at the first five rows of your new data frame to confirm it merged correctly. Also, check the last five rows to make sure the data is clean and as expected.
 
 ```{r}
-
+gdp_le = inner_join(gdp_df, life_expectancy, by=c('Country','Year'))
 ```
 
+```{r}
+gdp_le |> head(5)
+```
+
+```{r}
+gdp_le |> tail(5)
+```
 
 21. Create a new tibble, named gdp_le_2021 by extracting data for the year 2021 from gdp_le. How many countries have a life expectancy of at least 80 in 2021?
 
 ```{r}
-
+gdp_le_2021 = gdp_le |>
+  filter(Year==2021)
+gdp_le_2021 |> head(2)
 ```
-
 
 22. Find the countries that had the top 3 largest GDP per capita figures for 2021. Create a plot showing the change in life expectancy over time for these three countries. This plot should be faceted so that each country is contained in its own figure.
 
+Luxembourg, Singapore, and Ireland had the top 3 largest GDPs in 2021.
 ```{r}
+top_3_gdp_2021 = gdp_le_2021 |>
+  slice_max(GDP_Per_Capita, n=3) |>
+  pull(Country)
+top_3_gdp_2021
+```
 
+```{r}
+top_3_gdp = gdp_le |>
+  filter(Country %in% top_3_gdp_2021)
+  
+ggplot(top_3_gdp, aes(x = Year, y = Life_Expectancy)) +
+  geom_line() +
+  facet_wrap(~Country) + 
+  labs(title = "GDP Per Capita, 1990 - 2023",
+  x = "Year", y = "Life Expectancy (in years)")
 ```
 
 
 23. Create a scatter plot of Life Expectancy vs GDP per Capita for the year 2021. What do you notice?
 
 ```{r}
-
+ggplot(gdp_le_2021, aes(x = GDP_Per_Capita_Thousands, y = Life_Expectancy)) +
+  geom_point() +
+  labs(title = "Life Expectancy vs GDP per Capita, 2021",
+  x = "GDP Per Capita (thousands PPP)", y = "Life Expectancy (in years)")
 ```
 
 
 24. Find the correlation between Life Expectancy and GDP per Capita for the year 2021. What is the meaning of this number?
 
 ```{r}
+le_gdp_cor <- gdp_le_2021 |>
+  select(Life_Expectancy, GDP_Per_Capita) |>
+  correlate()
 
+le_gdp_cor
 ```
-
+The correlation between Life Expectancy and GDP per Capita for the year 2021 is about 0.745. This indicates a strong positive linear relationship between life expectancy and GDP per capita; that is, an increase in GDP per capita tends to be associated with an increase in life expectancy. 
 
 25. Add a column to gdp_le_2021 and calculate the logarithm of GDP per capita. Find the correlation between the log of GDP per capita and life expectancy. How does this compare to the calculation in the previous part? Look at a scatter plot to see if the result of this calculation makes sense.
 
 ```{r}
+gdp_le_2021 = gdp_le_2021 |>
+  mutate(Log_GDP_Per_Capita=log(GDP_Per_Capita))
 
+le_log_gdp_cor <- gdp_le_2021 |>
+  select(Life_Expectancy, Log_GDP_Per_Capita) |>
+  correlate()
+
+le_log_gdp_cor
 ```
+Taking the log of GDP per capita increases the correlation coefficient by about 0.1, from 0.745 to 0.847. Thus we have a very strong positive correlation between Life Expectancy and log GDP per Capita for the year 2021.
 
-
-
-
+```{r}
+ggplot(gdp_le_2021, aes(x = Log_GDP_Per_Capita, y = Life_Expectancy)) +
+  geom_point() +
+  labs(title = "Life Expectancy vs Log GDP per Capita, 2021",
+  x = "Log GDP Per Capita (thousands PPP)", y = "Life Expectancy (in years)")
+```
+The increased correlation coefficient makes sense when comparing the scatterplots. The scatterplot showing the relationship between GDP per capita and life expectancy resembles a curve; while the scatterplot of life expectancy vs log GDP per capita shows a linear relationship. 
 
 
 
